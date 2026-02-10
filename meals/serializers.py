@@ -1,0 +1,63 @@
+from rest_framework import serializers
+from .models import Meal, Order, Review
+from django.db.models import Avg
+
+
+class MealSerializer(serializers.ModelSerializer):
+    average_rating = serializers.SerializerMethodField()
+    total_reviews = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Meal
+        fields = ['id', 'name', 'description', 'price', 'average_rating', 'total_reviews']
+
+    def get_average_rating(self, obj):
+        avg = obj.reviews.aggregate(avg=Avg('rating'))['avg']
+        return round(avg, 1) if avg else 0.0
+    
+    def get_total_reviews(self, obj):
+        return obj.reviews.count()
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    meals = MealSerializer(many=True, read_only=True)
+    meals_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Meal.objects.all(),
+        many=True,
+        write_only=True,
+        source='meals'
+    )
+    total_price = serializers.ReadOnlyField(source='get_total_price')
+    user = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = ['id', 'user', 'meals', 'meals_ids', 'created_at', 'total_price']
+        read_only_fields = ['user', 'created_at']
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    meal_name = serializers.CharField(source='meal.name', read_only=True)
+
+    class Meta:
+        model = Review
+        fields = ['id', 'user', 'meal', 'meal_name', 'rating', 'comment']
+        read_only_fields = ['user']
+
+    def validate(self, data):
+        # التحقق من أن اليوزر ما عملش review قبل كده
+        user = self.context['request'].user
+        meal = data.get('meal')
+        
+        # في حالة UPDATE مش CREATE
+        if self.instance:
+            return data
+            
+        # في حالة CREATE
+        if Review.objects.filter(user=user, meal=meal).exists():
+            raise serializers.ValidationError(
+                "لقد قمت بتقييم هذه الوجبة من قبل. يمكنك تعديل تقييمك فقط."
+            )
+        
+        return data
