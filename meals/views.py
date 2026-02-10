@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from .models import Meal, Order, Review
 from .serializers import MealSerializer, OrderSerializer, ReviewSerializer
+from .pagination import MyPagination
 
 
 class MealViewSet(viewsets.ReadOnlyModelViewSet):
@@ -11,6 +12,8 @@ class MealViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Meal.objects.all()
     serializer_class = MealSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = MyPagination
+
 
 
 class OrderViewSet(viewsets.ModelViewSet):
