@@ -1,7 +1,64 @@
 from rest_framework import serializers
 from .models import Meal, Order, Review
 from django.db.models import Avg
+from django.contrib.auth.models import User
+from rest_framework.validators import UniqueValidator
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.password_validation import validate_password
 
+class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+        style={'input_type': 'password'}
+    )
+    password1 = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+        label="تأكيد كلمة المرور"
+    )
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'password', 'password1']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'password1': {'write_only': True}
+        }
+    
+    def validate(self, attrs):
+        """التحقق من تطابق كلمتي المرور"""
+        if attrs['password'] != attrs['password1']:
+            raise serializers.ValidationError({
+                "password1": "كلمتا المرور غير متطابقتين"
+            })
+        return attrs
+    
+    def create(self, validated_data):
+        """إنشاء المستخدم"""
+        validated_data.pop('password1')
+        
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password']
+        )
+        
+        return user
+    
+    def create(self, validated_data):
+        """إنشاء المستخدم"""
+        # حذف password1 لأنها مش جزء من الـ model
+        validated_data.pop('password1')
+        
+        # إنشاء المستخدم
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password']
+        )
+        
+        return user
 
 class MealSerializer(serializers.ModelSerializer):
     average_rating = serializers.SerializerMethodField()
